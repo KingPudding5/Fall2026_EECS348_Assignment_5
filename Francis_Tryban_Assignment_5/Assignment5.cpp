@@ -1,11 +1,13 @@
-//EECS 348 Assignment 4
-//Sudoku Solver that use a brute force recursive algorithm
-//input: puzzle1.txt through puzzle5.txt
-//Output: solved puzzles
-//Collaborators: Me
-//Other Collaborators: Claude
-//Weston G. Uptmor
-//10/15/2026
+//EECS 348 Assignment 5
+//Solve Sudoku puzzles with recursive backtracking and save each puzzle's solutions.
+//Input: puzzle1.txt through puzzle5.txt, or filenames given on the command line.
+//Output: the original console report and solutionN.txt files with grids and a count.
+//Original author: Weston G. Uptmor; creation date: 10/15/2026.
+//Revised by: Francis Tryban; revision date: 10/28/2026.
+//Collaborators: Weston credited Claude for his original program.
+//Claude Haiku 4.5 supplied the first file-output changes used for this revision.
+//OpenAI GPT-6.1-Sol in Zed helped Francis revise the code, comments and analysis.
+//Unchanged code/comments are Weston's; their existing "me" credits refer to him.
 
 
 #include <array> //used for grid
@@ -17,6 +19,7 @@
 #include <vector> //allows a list of filenames
 
 
+//Weston's board and rule checks are retained below; the added file printer is marked A5.
 class SudokuBoard { //initializes class SudokuBoard responsible for the board and the rules of placement
     public:
         static const int N = 9;      // board is N x N
@@ -24,6 +27,7 @@ class SudokuBoard { //initializes class SudokuBoard responsible for the board an
         static const int EMPTY = 0;  // internal marker for a blank square
 
         SudokuBoard() { grid_.fill(EMPTY); } //constructor that starts with every cell blank
+        //Original loading code by Weston, with the Claude assistance credited in his header.
         //following code reads puzzle from a file and returns it
         //code returns false if the file is invalid
         bool load(const std::string& filename) { //method "load"
@@ -45,10 +49,12 @@ class SudokuBoard { //initializes class SudokuBoard responsible for the board an
             return count == N * N; //success if exactly 81 cells were read
         }
 
+        //Weston's cell-access helpers: read a value, replace it, or check for a blank.
         int  get(int row, int col) const { return grid_[row * N + col]; } //read a cell
         void set(int row, int col, int v) { grid_[row * N + col] = v; } //write a value into said cell
         bool isEmpty(int row, int col) const { return get(row, col) == EMPTY; } //return true if cell is blank
 
+        //Weston's placement check compares the candidate with its row, column and box.
         bool canPlace(int row, int col, int v) const { //initializes method canPlace that checks if num can be place in a given spot
             for (int i = 0; i < N; ++i) { //for loop that iterates along a row and a col together
                 if (get(row, i) == v) return false;//if v already appears in this row, return false
@@ -61,7 +67,8 @@ class SudokuBoard { //initializes class SudokuBoard responsible for the board an
             return true;//if placement is good, return True
         }
 
-        bool givensAreConsistent() const { //initializes method "givensAreConsistent" which checks if the puzzle is unsolvable
+        //Weston's clue check is retained; GPT-6.1-Sol clarified its description.
+        bool givensAreConsistent() const { //checks for conflicting clues, not whether a solution must exist
             SudokuBoard tmp = *this; //creates a copy of the current board
             for (int r = 0; r < N; ++r) //iterates over rows
                 for (int c = 0; c < N; ++c) { //iterates over columns
@@ -75,6 +82,7 @@ class SudokuBoard { //initializes class SudokuBoard responsible for the board an
             return true; //if there were no conflicts, returns true
     }
 
+    //Weston's original display printer keeps its box dividers for the console.
     void print(std::ostream& os) const { //initializes method "print" which prints out the board
         for (int r = 0; r < N; ++r) {//iterates rows
             if (r > 0 && r % B == 0) os << "------+-------+------\n";//adds a divider between 3x3 block rows
@@ -87,21 +95,40 @@ class SudokuBoard { //initializes class SudokuBoard responsible for the board an
         }
     }
 
+    //A5: Claude's file printer, revised with GPT-6.1-Sol to separate the cells.
+    //Each row uses the same space-separated layout as the input puzzle files.
+    void printRaw(std::ostream& os) const { //write the board without changing it
+        for (int r = 0; r < N; ++r) { //visit the nine rows in order
+            for (int c = 0; c < N; ++c) { //visit each cell in this row
+                if (c > 0) os << ' '; //separate cells without adding box dividers
+                os << (isEmpty(r, c) ? '_' : static_cast<char>('0' + get(r, c))); //write a blank or digit
+            }
+            os << '\n'; //finish this row
+        }
+        os << '\n'; //keep consecutive solutions easy to tell apart
+    }
+
     private:
         std::array<int, N * N> grid_;//where the board is stored
 };
 
+//A5: GPT-6.1-Sol supplied the missing definition needed by array::fill.
+const int SudokuBoard::EMPTY;
+
 // ---------------------------------------------------------------------------
 // SudokuSolver: exhaustive depth-first search with backtracking.
-// Works on its own copy of the board and collects every solution found.
+// Works on its own copy of the board and prints each solution as it is found.
 // ---------------------------------------------------------------------------
-class SudokuSolver { //initializes class SudokuSolver responsible for the search, collects every solution found
+//Weston's search is retained; Claude added file output, and GPT-6.1-Sol removed the default cap.
+class SudokuSolver { //search the board and print each solution without collecting solved boards
     public:
-    //changed sodoku solver so now it takes the output stream and can immediately prints references which are the solutions
-    SudokuSolver(const SudokuBoard& puzzle, std::ostream& os, std::size_t maxSolutions = 1000)// constructor, sets maximum solutions to 1000. This line and the next have been changed and authored by me and Claude
-        : board_(puzzle), os_(os), maxSolutions_(maxSolutions) {} //copies puzzleboard and stores the stream and limit
+    //A5: Claude added the file stream; GPT-6.1-Sol changed the default limit to 0.
+    //Zero means no limit, so the normal run searches for every solution.
+    SudokuSolver(const SudokuBoard& puzzle, std::ostream& os, std::ostream& solutionFile, std::size_t maxSolutions = 0)
+        : board_(puzzle), os_(os), solutionFile_(solutionFile), maxSolutions_(maxSolutions) {} //copy the board and keep the stream references and chosen limit
 
 
+    //Weston's original solve entry point checks the clues before starting the search.
     std::size_t solveAll() {//method solveAll that returns # of solutions found, method has been changed and is authored by me
         count_ = 0; //resets counter
         if (!board_.givensAreConsistent()) return 0; //contradictory givens
@@ -112,10 +139,12 @@ class SudokuSolver { //initializes class SudokuSolver responsible for the search
 
     private:
         SudokuBoard board_;//copy of board
-        std::ostream& os_; //added as a location to be streamed to. This and following two lines have been authored by me
+        std::ostream& os_; //Weston's console stream
+        std::ostream& solutionFile_; //A5: Claude's added stream for the solution file
         std::size_t count_ = 0; //added count
-        std::size_t maxSolutions_; //added max amount of solutions, can be changed depending on if you want more or less 
+        std::size_t maxSolutions_; //added max amount of solutions, can be changed depending on if you want more or less
 
+        //Weston's recursive search; Claude's added file write is marked at the completed board.
         void search(int pos) {//method search that is the recursive step which searches for solutions
             if (maxSolutions_ != 0 && count_ >= maxSolutions_) { //max amount of solutions enforcement. If statement authored by me
                 return;//stops searching once max solutions have been reached
@@ -130,6 +159,7 @@ class SudokuSolver { //initializes class SudokuSolver responsible for the search
             if (pos == total) {// if solution is complete. If statement authored by me
                 ++count_; //counter goes up one
                 os_ << "\nSolution " << count_ << ":\n"; board_.print(os_); //prints solution without storing anything
+                board_.printRaw(solutionFile_); //A5: Claude also writes this solution to its file
                 return;//go back and find more solutions
             }
 
@@ -146,6 +176,7 @@ class SudokuSolver { //initializes class SudokuSolver responsible for the search
         }
 };
 
+//Weston's runner retains its console report; the A5 file-handling additions are marked below.
 class PuzzleRunner { //class PuzzleRunner that loads the file, solves the puzzle, and then prints everything out
     public:
         explicit PuzzleRunner(const std::string& filename) : filename_(filename) {} //stores file
@@ -163,24 +194,49 @@ class PuzzleRunner { //class PuzzleRunner that loads the file, solves the puzzle
             os << "Puzzle:\n";//prints "Puzzle:" with a return line
             puzzle.print(os);//prints the unsolved puzzle
 
-            SudokuSolver solver(puzzle, os); //creates an instance of Sudoku Solver called solver, updated to include os
+            //A5: Claude opened the solution file here; GPT-6.1-Sol added the check.
+            std::string solutionFilename = getSolutionFilename(filename_); //match the input puzzle number
+            std::ofstream solutionFile(solutionFilename); //create the file or replace its old contents
+            if (!solutionFile) { //opening can fail, such as when the location is not writable
+                os << "Error: could not create " << solutionFilename << ".\n\n"; //name the failed output
+                return; //do not pretend the solutions were saved
+            }
+
+            SudokuSolver solver(puzzle, os, solutionFile); //A5: send solutions to both destinations
             std::size_t n = solver.solveAll();//calls solveAll which solves the puzzle and prints it
 
             os << '\n';//blank line
             if (n == 0) {//if there are no solutions
-                os << "no solution found\n\n";//print that there aren't any solutions
-                return;//exit method
+                os << "No solution found\n\n"; //A4 console message
+                solutionFile << "No solution found.\n"; //A5: Claude's required file message
             }
             else{ //if there are solutions
                 os << n << (n==1 ? " solution" : " solutions") << " found.\n\n"; //print the number of solutions, can now just print the amount of solutions instead of using a for loop
+                solutionFile << "Solutions found: " << n << '\n'; //A5: Claude's file summary
             }
+            //A5: GPT-6.1-Sol added a final check so write errors are reported too.
+            solutionFile.close(); //finish pending writes before checking the stream
+            if (!solutionFile) os << "Error: could not finish writing " << solutionFilename << ".\n\n";
         }
 
     private:
         std::string filename_;//name of the file
+
+        //A5: Claude's filename helper, revised with GPT-6.1-Sol to find digits.
+        //Ignore folder names, then use the first digit group in the input name.
+        std::string getSolutionFilename(const std::string& filename) const { //build the output name
+            std::size_t slash = filename.find_last_of("/\\"); //find the last folder separator, if any
+            std::string base = slash == std::string::npos ? filename : filename.substr(slash + 1); //keep only the filename
+            std::size_t start = base.find_first_of("0123456789"); //locate the first puzzle-number digit
+            if (start == std::string::npos) return "solution.txt"; //fallback for unnumbered inputs
+            std::size_t end = base.find_first_not_of("0123456789", start); //stop at the first non-digit
+            //If the digit group reaches the end, substr keeps the remaining characters.
+            return "solution" + base.substr(start, end - start) + ".txt"; //puzzle3.txt becomes solution3.txt
+        }
     };
 
     // ---------------------------------------------------------------------------
+    //Weston's original main selects input files and runs one PuzzleRunner for each.
     int main(int argc, char* argv[]) {//main
         std::vector<std::string> files; //list of puzzle filenames
         if (argc > 1) { //if there are filenames given on command line
